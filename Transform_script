@@ -1,0 +1,30 @@
+# Read input from stdin
+data <- read.table(file = "stdin", header = TRUE, sep = "\t", check.names = FALSE, na.strings = "NA")
+
+cat("treatment\tdose\trep\ttime\tstatus\n")
+
+# Process each row of the input data
+for (i in 1:nrow(data)) {
+  row <- na.omit(data[i, ])
+  
+  if (length(row) > 1) {
+    for (j in 6:length(row)) {
+      n <- as.numeric(row[j]) - as.numeric(row[j - 1])
+      
+      if (!is.na(n) && n > 0) {
+        for (k in 1:n) {
+          cat(paste(row[1], row[2], row[3], colnames(data)[j], "1", sep = "\t"), "\n")
+        }
+      }
+    }
+    
+    if (as.numeric(row[4]) > as.numeric(row[length(row)])) {
+      n <- as.numeric(row[4]) - as.numeric(row[length(row)])
+      if (!is.na(n) && n > 0) {
+        for (k in 1:n) {
+          cat(paste(row[1], row[2], row[3], colnames(data)[length(row)], "0", sep = "\t"), "\n")
+        }
+      }
+    }
+  }
+}
