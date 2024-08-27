@@ -1,0 +1,78 @@
+
+# Assuming 'fit' is your survfit object
+
+# Load necessary libraries
+library(survival)
+library(survminer)
+library(patchwork)
+
+#Open File
+dat <- read.table("Survival_table.txt",header=T)       ###1.input file###
+
+#define the order of treatment and dose
+dat$treatment <- factor(dat$treatment, levels = c("Control","Treatment1","Treatment2","Treatment3"))
+
+##Survival analysis: LT50 and Log-Rank test##
+
+#fit to survival model based on treatment
+fit <- survfit(Surv(time, status) ~ treatment, data = dat)
+
+#export median (LT50) table
+median <- summary(fit)$table
+save.df<- as.data.frame(median)
+write.csv(median,'LT50_data.csv')
+
+# Perform log-rank test for multiple treatment comparisons
+result <- pairwise_survdiff(Surv(time, status) ~ treatment, data = dat)
+
+# Extract the p-values for "Control" vs. each other treatment
+contvtreat_pvalues <- result$p.value[,"Control" ]
+
+# Adjust p-values for multiple testing (e.g., using Bonferroni correction)
+adjusted_pvalues <- p.adjust(contvtreat_pvalues, method = "bonferroni")
+
+# Create a dataset with original p-value, and adjusted p-value
+comparison_dataset <- data.frame(
+  Original_PValue = contvtreat_pvalues,
+  Adjusted_PValue = ifelse(!is.na(adjusted_pvalues), adjusted_pvalues, NA)
+)
+
+#export LogRank data
+write.csv(comparison_dataset,'LogRank_data.csv')
+
+##Survival plots##
+# Create a vector of treatments to loop through
+treatments <- c("Control","Treatment1","Treatment2","Treatment3")
+
+# Create a list to store the plots
+plot_list <- list()
+
+# Loop through treatments and create plots
+for (treatment in treatments) {
+  # Subset data for the current treatment
+  subset_data <- dat[dat$treatment %in% c("Control", treatment), ]
+  
+  # Fit survival model for the subset
+  fit_subset <- survfit(Surv(time, status) ~ treatment, data = subset_data)
+  
+  # Create a title for the plot
+  plot_title <- paste("Survival Plot for", treatment)
+  
+  # Create the survival plot and store it in the list
+  plot <- ggsurvplot(fit_subset, 
+                     data = subset_data, 
+                     pval = F,                # show p-value of log-rank test.
+                     conf.int = T,           # show confidence intervals
+                     xlim = c(0,60),         ### X axis, but not affect survival estimates.
+                     break.x.by = 5,      ### break X axis in time intervals by .
+                     xlab = "Time (Days)",          ### 5.customize X axis label
+                     ylim = c(0,1),
+                     title = plot_title)
+  plot_list[[treatment]] <- plot$plot  # Extract the ggplot object
+}
+
+# Arrange and print the plots
+p <- wrap_plots(plotlist = plot_list, ncol = 3)  # Adjust the 'ncol' parameter as needed
+
+#save to file
+ggsave("Survival_Curve.pdf", print(p),height = 15, width = 18) #Adjust height and width as needed
